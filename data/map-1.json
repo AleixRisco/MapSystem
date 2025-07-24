@@ -3,5 +3,5 @@
   "cols": 5,
   "rows": 5,
   "start": { "col": 3, "row": 3 },
-  "cellSize": 150
+  "image": "map-1.png"
 }
