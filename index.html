@@ -7,23 +7,21 @@
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MapSystem</title>
-  <link rel="stylesheet" href="assets/styles.css?v=1.0.3">
+  <link rel="stylesheet" href="assets/styles.css?v=1.0.4">
   <style>
     html, body { height:100%; margin:0; font-family: Arial, sans-serif; }
     body { display:flex; }
     #container { display:flex; flex:1; }
-    #sidebar { width:200px; background:#fafafa; padding:10px; box-shadow:2px 0 5px rgba(0,0,0,0.1); box-sizing:border-box; }
-    #sidebar h2 { margin-top:0; font-size:18px; }
-    #version-info { font-size:12px; color:#777; margin-top:20px; }
+    #sidebar { width:200px; background:#fafafa; padding:10px; box-shadow:2px 0 5px rgba(0,0,0,0.1); }
     #main { flex:1; display:flex; flex-direction:column; }
-    #menu { display:flex; justify-content:flex-end; padding:10px; background:#eaeaea; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
-    #coin-display { display:flex; flex-direction: column; align-items: center; }
-    #coin-display span { font-size:1em; }
+    #menu { padding:10px; background:#eaeaea; display:flex; justify-content:flex-end; }
+    #coin-display { text-align:right; }
+    #coin-display span { display:block; }
     #add-coins { margin-top:5px; }
     #grid-container { position:relative; width:800px; height:800px; margin:auto; }
     #map-image { position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover; z-index:0; }
     #grid { position:absolute; top:0; left:0; display:grid; width:100%; height:100%; z-index:1; }
-    .cell { box-sizing:border-box; border:1px solid #999; display:flex; justify-content:center; align-items:center; font-weight:bold; }
+    .cell { box-sizing:border-box; border:1px solid #999; display:flex; justify-content:center; align-items:center; }
     .locked { background:#ccc; }
     .available { background:#fff; cursor:pointer; }
     .unlocked { background:transparent !important; }
@@ -34,15 +32,11 @@
     <aside id="sidebar">
       <h2>Mapas</h2>
       <div id="maps-list"></div>
-      <div id="version-info">
-        <strong>Versión:</strong> 1.0.3<br>
-        <strong>Build:</strong> <span id="build-time">--:--:--</span>
-      </div>
     </aside>
     <div id="main">
       <div id="menu">
         <div id="coin-display">
-          <div><span>Monedas: </span><span id="coin-counter">0</span></div>
+          <span>Monedas: <strong id="coin-counter">0</strong></span>
           <button id="add-coins">+100 Monedas</button>
         </div>
       </div>
@@ -52,105 +46,103 @@
       </div>
     </div>
   </div>
-  <script>
-    const version = '1.0.3';
-    const buildTime = new Date().toLocaleString();
-    document.getElementById('build-time').textContent = buildTime;
+<script>
+  const version = '1.0.4';
+  let playerData, costData, mapData, unlockedCells = new Set();
 
-    let playerData, costData, mapData, unlockedCells = new Set();
+  async function loadJSON(path) {
+    const res = await fetch(path + '?v=' + version);
+    return res.json();
+  }
 
-    async function loadJSON(path) {
-      const res = await fetch(path + '?v=' + version);
-      return res.json();
-    }
+  function distanceRing(x1,y1,x2,y2) {
+    return Math.max(Math.abs(x1-x2), Math.abs(y1-y2));
+  }
 
-    function distanceRing(x1,y1,x2,y2) {
-      return Math.max(Math.abs(x1-x2), Math.abs(y1-y2));
-    }
-
-    function renderGrid() {
-      const { cols, rows, start, image } = mapData;
-      const size = 800;
-      const cellW = size / cols;
-      const cellH = size / rows;
-      const grid = document.getElementById('grid');
-      grid.style.gridTemplateColumns = `repeat(${cols}, ${cellW}px)`;
-      grid.style.gridTemplateRows = `repeat(${rows}, ${cellH}px)`;
-      document.getElementById('map-image').src = `assets/map-images/${image}?v=${version}`;
-      grid.innerHTML = '';
-      for (let r = 1; r <= rows; r++) {
-        for (let c = 1; c <= cols; c++) {
-          const key = `${c},${r}`;
-          const ring = distanceRing(c, r, start.col, start.row);
-          const el = document.createElement('div');
-          el.classList.add('cell');
-          el.style.width = `${cellW}px`;
-          el.style.height = `${cellH}px`;
-          if (unlockedCells.has(key)) {
-            el.classList.add('unlocked');
+  function renderGrid() {
+    const { cols, rows, start, image } = mapData;
+    const size = 800;
+    const w = size / cols, h = size / rows;
+    const grid = document.getElementById('grid');
+    grid.style.gridTemplateColumns = `repeat(${cols}, ${w}px)`;
+    grid.style.gridTemplateRows = `repeat(${rows}, ${h}px)`;
+    document.getElementById('map-image').src = `assets/map-images/${image}?v=${version}`;
+    grid.innerHTML = '';
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
+        const key = `${c},${r}`, ring = distanceRing(c,r,start.col,start.row);
+        const el = document.createElement('div');
+        el.classList.add('cell');
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
+        if (ring === 0 && !unlockedCells.has(key)) {
+          el.classList.add('available');
+          el.addEventListener('click', () => buyCell(key, 0));
+        } else if (unlockedCells.has(key)) {
+          el.classList.add('unlocked');
+        } else {
+          const neigh = [`${c-1},${r}`,`${c+1},${r}`,`${c},${r-1}`,`${c},${r+1}`];
+          if (neigh.some(n=>unlockedCells.has(n))) {
+            el.classList.add('available');
+            const price = costData.rings[ring]||0;
+            el.textContent = price||'';
+            el.style.color = playerData.coins < price ? 'red' : '';
+            el.addEventListener('click', () => buyCell(key, price));
           } else {
-            const neigh = [`${c-1},${r}`,`${c+1},${r}`,`${c},${r-1}`,`${c},${r+1}`];
-            if (neigh.some(n => unlockedCells.has(n))) {
-              el.classList.add('available');
-              const price = costData.rings[ring] || 0;
-              el.textContent = price;
-              el.style.color = playerData.coins < price ? 'red' : '';
-              el.addEventListener('click', () => buyCell(key, price));
-            } else {
-              el.classList.add('locked');
-            }
+            el.classList.add('locked');
           }
-          grid.appendChild(el);
         }
+        grid.appendChild(el);
       }
     }
+  }
 
-    function updateCoins() {
-      document.getElementById('coin-counter').textContent = playerData.coins;
-    }
+  function updateCoins() {
+    document.getElementById('coin-counter').textContent = playerData.coins;
+  }
 
-    function buyCell(key, price) {
-      if (playerData.coins >= price) {
-        playerData.coins -= price;
-        unlockedCells.add(key);
-        updateCoins();
-        renderGrid();
-      } else {
-        alert('No tienes suficientes monedas.');
-      }
-    }
-
-    async function init() {
-      playerData = await loadJSON('data/player-data.json');
-      costData = await loadJSON(`data/${playerData.costRef}.json`);
-      const maps = await loadJSON('data/game-map.json');
-      const ml = document.getElementById('maps-list');
-      maps.maps.forEach(m => {
-        const btn = document.createElement('button');
-        btn.textContent = m;
-        btn.style.display = 'block';
-        btn.style.margin = '5px 0';
-        btn.addEventListener('click', async () => {
-          mapData = await loadJSON(`data/${m}.json`);
-          unlockedCells = new Set([`${mapData.start.col},${mapData.start.row}`]);
-          renderGrid();
-        });
-        ml.appendChild(btn);
-      });
-
-      document.getElementById('add-coins').addEventListener('click', () => {
-        playerData.coins += playerData.bonus;
-        updateCoins();
-        renderGrid();
-      });
-
-      mapData = await loadJSON('data/map-1.json');
-      unlockedCells = new Set([`${mapData.start.col},${mapData.start.row}`]);
+  function buyCell(key, price) {
+    if (playerData.coins >= price) {
+      playerData.coins -= price;
+      unlockedCells.add(key);
       updateCoins();
       renderGrid();
+    } else {
+      alert('No tienes suficientes monedas.');
     }
+  }
 
-    window.onload = init;
-  </script>
+  async function init() {
+    playerData = await loadJSON('data/player-data.json');
+    costData = await loadJSON(`data/${playerData.costRef}.json`);
+    const maps = await loadJSON('data/game-map.json');
+    const ml = document.getElementById('maps-list');
+    maps.maps.forEach(m => {
+      const b = document.createElement('button');
+      b.textContent = m;
+      b.style.display='block';
+      b.style.margin='5px 0';
+      b.onclick = async () => {
+        mapData = await loadJSON(`data/${m}.json`);
+        unlockedCells = new Set();
+        playerData.coins = 0;
+        updateCoins();
+        renderGrid();
+      };
+      ml.appendChild(b);
+    });
+    document.getElementById('add-coins').addEventListener('click', () => {
+      playerData.coins += playerData.bonus;
+      updateCoins();
+      renderGrid();
+    });
+    mapData = await loadJSON('data/map-1.json');
+    unlockedCells = new Set();
+    updateCoins();
+    renderGrid();
+  }
+
+  window.onload = init;
+</script>
 </body>
 </html>
