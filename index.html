@@ -39,6 +39,7 @@
 
   <script>
     let playerData, costData, mapData;
+    let unlockedCells = new Set();
 
     async function loadJSON(path) {
       const res = await fetch(path);
@@ -56,58 +57,50 @@
       grid.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
       grid.innerHTML = '';
 
-      // La casilla inicial siempre desbloqueada
-      const unlocked = new Set([`${start.col},${start.row}`]);
-      const cells = [];
-
       for (let r = 1; r <= rows; r++) {
         for (let c = 1; c <= cols; c++) {
           const key = `${c},${r}`;
           const ring = distanceRing(c, r, start.col, start.row);
-          cells.push({ c, r, ring, key });
+          const el = document.createElement('div');
+          el.classList.add('cell');
+          el.style.width = el.style.height = `${cellSize}px`;
+
+          if (unlockedCells.has(key)) {
+            el.classList.add('unlocked');
+          } else {
+            // vecinos de la celda
+            const neigh = [
+              `${c-1},${r}`, `${c+1},${r}`,
+              `${c},${r-1}`, `${c},${r+1}`
+            ];
+            if (neigh.some(n => unlockedCells.has(n))) {
+              el.classList.add('available');
+              const price = costData.rings[ring] ?? 0;
+              el.textContent = price;
+              if (playerData.coins < price) {
+                el.style.color = 'red';
+              } else {
+                el.style.color = '';
+              }
+              el.addEventListener('click', () => buyCell(key, price));
+            } else {
+              el.classList.add('locked');
+            }
+          }
+          grid.appendChild(el);
         }
       }
-
-      cells.forEach(cell => {
-        const el = document.createElement('div');
-        el.classList.add('cell');
-        el.style.width = el.style.height = `${mapData.cellSize}px`;
-
-        if (unlocked.has(cell.key)) {
-          el.classList.add('unlocked');
-        } else {
-          // ¿Algún vecino desbloqueado?
-          const neigh = [
-            `${cell.c-1},${cell.r}`,
-            `${cell.c+1},${cell.r}`,
-            `${cell.c},${cell.r-1}`,
-            `${cell.c},${cell.r+1}`
-          ];
-          if (neigh.some(n => unlocked.has(n))) {
-            el.classList.add('available');
-            el.textContent = costData.rings[cell.ring] ?? '?';
-            el.addEventListener('click', () => buyCell(cell, el));
-          } else {
-            el.classList.add('locked');
-          }
-        }
-
-        grid.appendChild(el);
-      });
     }
 
     function updateCoins() {
       document.getElementById('coin-counter').textContent = playerData.coins;
     }
 
-    function buyCell(cell, el) {
-      const price = costData.rings[cell.ring] ?? 0;
+    function buyCell(key, price) {
       if (playerData.coins >= price) {
         playerData.coins -= price;
+        unlockedCells.add(key);
         updateCoins();
-        el.classList.remove('available');
-        el.classList.add('unlocked');
-        el.textContent = '';
         renderGrid();
       } else {
         alert('No tienes suficientes monedas.');
@@ -119,7 +112,11 @@
       costData   = await loadJSON(`data/${playerData.costRef || 'cost-1'}.json`);
       mapData    = await loadJSON('data/map-1.json');
 
-      // Carga lista de mapas
+      // inicializar casillas desbloqueadas
+      const startKey = `${mapData.start.col},${mapData.start.row}`;
+      unlockedCells = new Set([startKey]);
+
+      // cargar lista de mapas
       const gm = await loadJSON('data/game-map.json');
       const ml = document.getElementById('maps-list');
       gm.maps.forEach(m => {
@@ -127,6 +124,7 @@
         btn.textContent = m;
         btn.addEventListener('click', async () => {
           mapData = await loadJSON(`data/${m}.json`);
+          unlockedCells = new Set([`${mapData.start.col},${mapData.start.row}`]);
           renderGrid();
         });
         ml.appendChild(btn);
