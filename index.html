@@ -3,17 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapa y Minijuego</title>
+  <title>MapSystem</title>
   <link rel="stylesheet" href="assets/styles.css">
   <style>
-    /* Aseguramos que la rejilla quede centrada bajo el menú */
     html, body {
       height: 100%;
       margin: 0;
+      font-family: Arial, sans-serif;
+    }
+    .version-label {
+      font-size: 14px;
+      padding: 5px 10px;
+      background: #f0f0f0;
+      color: #555;
+      border-bottom: 1px solid #ddd;
     }
     body {
       display: flex;
+    }
+    #container {
+      display: flex;
+      flex: 1;
+    }
+    #sidebar {
+      width: 200px;
+      background: #fafafa;
+      padding: 10px;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+      box-sizing: border-box;
+    }
+    #sidebar h2 {
+      margin-top: 0;
+      font-size: 18px;
+    }
+    #version-info {
+      font-size: 12px;
+      color: #777;
+      margin-top: 20px;
+    }
+    #main {
+      flex: 1;
+      display: flex;
       flex-direction: column;
+    }
+    #menu {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      background: #eaeaea;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
     #grid-container {
       flex: 1;
@@ -21,23 +60,51 @@
       justify-content: center;
       align-items: center;
     }
+    #grid {
+      display: grid;
+    }
+    .cell {
+      box-sizing: border-box;
+      border: 1px solid #999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      font-size: 1em;
+    }
+    .locked { background: #ccc; }
+    .available { background: #fff; cursor: pointer; }
+    .unlocked { background: orange; }
   </style>
 </head>
 <body>
-  <div id="menu">
-    <div id="left-menu">
-      <button id="add-coins">+100 Monedas</button>
+  <div class="version-label" id="version-label">v1.0.0 | --/--/---- --:--:--</div>
+  <div id="container">
+    <aside id="sidebar">
+      <h2>Mapas</h2>
       <div id="maps-list"></div>
+      <div id="version-info">
+        <strong>Versión:</strong> 1.0.0<br>
+        <strong>Build:</strong> <span id="build-time">--/--/---- --:--:--</span>
+      </div>
+    </aside>
+    <div id="main">
+      <div id="menu">
+        <button id="add-coins">+100 Monedas</button>
+        <div><span>Monedas: </span><span id="coin-counter">0</span></div>
+      </div>
+      <div id="grid-container">
+        <div id="grid"></div>
+      </div>
     </div>
-    <div id="right-menu">
-      <span>Monedas: </span><span id="coin-counter">0</span>
-    </div>
-  </div>
-  <div id="grid-container">
-    <div id="grid"></div>
   </div>
 
   <script>
+    const version = '1.0.0';
+    const buildTime = new Date().toLocaleString();
+    document.getElementById('version-label').textContent = `v${version} | ${buildTime}`;
+    document.getElementById('build-time').textContent = buildTime;
+
     let playerData, costData, mapData;
     let unlockedCells = new Set();
 
@@ -46,8 +113,8 @@
       return res.json();
     }
 
-    function distanceRing(c1, r1, c2, r2) {
-      return Math.max(Math.abs(c1 - c2), Math.abs(r1 - r2));
+    function distanceRing(x1, y1, x2, y2) {
+      return Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2));
     }
 
     function renderGrid() {
@@ -68,7 +135,6 @@
           if (unlockedCells.has(key)) {
             el.classList.add('unlocked');
           } else {
-            // vecinos de la celda
             const neigh = [
               `${c-1},${r}`, `${c+1},${r}`,
               `${c},${r-1}`, `${c},${r+1}`
@@ -77,11 +143,7 @@
               el.classList.add('available');
               const price = costData.rings[ring] ?? 0;
               el.textContent = price;
-              if (playerData.coins < price) {
-                el.style.color = 'red';
-              } else {
-                el.style.color = '';
-              }
+              el.style.color = playerData.coins < price ? 'red' : '';
               el.addEventListener('click', () => buyCell(key, price));
             } else {
               el.classList.add('locked');
@@ -109,19 +171,15 @@
 
     async function init() {
       playerData = await loadJSON('data/player-data.json');
-      costData   = await loadJSON(`data/${playerData.costRef || 'cost-1'}.json`);
-      mapData    = await loadJSON('data/map-1.json');
+      costData   = await loadJSON(`data/${playerData.costRef}.json`);
+      const maps  = await loadJSON('data/game-map.json');
+      const ml    = document.getElementById('maps-list');
 
-      // inicializar casillas desbloqueadas
-      const startKey = `${mapData.start.col},${mapData.start.row}`;
-      unlockedCells = new Set([startKey]);
-
-      // cargar lista de mapas
-      const gm = await loadJSON('data/game-map.json');
-      const ml = document.getElementById('maps-list');
-      gm.maps.forEach(m => {
+      maps.maps.forEach(m => {
         const btn = document.createElement('button');
         btn.textContent = m;
+        btn.style.display = 'block';
+        btn.style.margin = '5px 0';
         btn.addEventListener('click', async () => {
           mapData = await loadJSON(`data/${m}.json`);
           unlockedCells = new Set([`${mapData.start.col},${mapData.start.row}`]);
@@ -136,6 +194,9 @@
         renderGrid();
       });
 
+      // Carga inicial
+      mapData = await loadJSON('data/map-1.json');
+      unlockedCells = new Set([`${mapData.start.col},${mapData.start.row}`]);
       updateCoins();
       renderGrid();
     }
