@@ -1,0 +1,7 @@
+{
+  "costRef": "cost-1",
+  "cols": 5,
+  "rows": 5,
+  "start": { "col": 3, "row": 3 },
+  "cellSize": 150
+}
