@@ -1,0 +1,10 @@
+{
+  "cols": 10,
+  "costRef": "cost-1",
+  "image": "map-2.png",
+  "rows": 10,
+  "start": {
+    "col": 8,
+    "row": 8
+  }
+}
