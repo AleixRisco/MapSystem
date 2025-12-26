@@ -27,6 +27,7 @@
     .locked { background:#ccc; }
     .available { background:#fff; cursor:pointer; }
     .unlocked { background:transparent !important; }
+    .active-map-btn { background-color: orange; color: white; border: 1px solid darkorange; }
   </style>
 </head>
 <body>
@@ -67,6 +68,15 @@
   }
 
   async function loadMap(mapName) {
+    const buttons = document.querySelectorAll('#maps-list button');
+    buttons.forEach(btn => {
+      if (btn.dataset.map === mapName) {
+        btn.classList.add('active-map-btn');
+      } else {
+        btn.classList.remove('active-map-btn');
+      }
+    });
+
     mapData = await loadJSON(`data/${mapName}.json`);
     costData = await loadJSON(`data/${mapData.costRef}.json`);
     currentMap = mapName;
@@ -152,6 +162,7 @@
     maps.maps.forEach(m => {
       const btn = document.createElement('button');
       btn.textContent = m;
+      btn.dataset.map = m;
       btn.style.display = 'block';
       btn.style.margin = '5px 0';
       btn.addEventListener('click', () => loadMap(m));
